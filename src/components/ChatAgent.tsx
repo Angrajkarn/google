@@ -1,14 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { getGeminiResponse } from "@/lib/gemini";
+import { fetchIPLMatches, MatchData } from "@/lib/cricketApi";
 
 const ChatAgent = () => {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([
-    { role: "assistant", content: "Hey! I'm your Agentic Match Companion. Ask me anything about the game!" },
+    { role: "assistant", content: "I'm checking the live scores... Ready to discuss the game!" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [matchContext, setMatchContext] = useState<string>("");
+
+  useEffect(() => {
+    const updateContext = async () => {
+      const matches = await fetchIPLMatches();
+      if (matches.length > 0) {
+        const liveMatch = matches[0];
+        setMatchContext(`IPL Match: ${liveMatch.team1} vs ${liveMatch.team2}. Current status: ${liveMatch.status}. Scores: ${liveMatch.team1} (${liveMatch.score1}), ${liveMatch.team2} (${liveMatch.score2}).`);
+      } else {
+        setMatchContext("No live IPL matches currently.");
+      }
+    };
+    updateContext();
+    const interval = setInterval(updateContext, 60000); // Update context every minute
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -19,10 +36,10 @@ const ChatAgent = () => {
     setLoading(true);
 
     try {
-      const response = await getGeminiResponse(input, "Current score is RCB 145/3 in 16.4 overs.");
+      const response = await getGeminiResponse(input, matchContext);
       setMessages((prev) => [...prev, { role: "assistant", content: response }]);
     } catch (error) {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Oops, something went wrong. Let's try again!" }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Connection to the Match Center timed out. Let's try again!" }]);
     } finally {
       setLoading(false);
     }
@@ -68,7 +85,7 @@ const ChatAgent = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Ask about match context..."
+            placeholder="Ask about live match context..."
             className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-colors"
           />
           <button 
